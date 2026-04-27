@@ -29,14 +29,13 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     && pip3 install --no-cache-dir --break-system-packages --no-deps \
         mt5linux==0.1.9
 
-# ---- Wine prefix init + MT5 install + Python-in-Wine + MetaTrader5 lib ----
+# ---- Scripts (Wine init + MT5 install runs at FIRST BOOT, not build-time) ----
+# Build-time wineboot fails because Coolify's BuildKit blocks seccomp syscalls Wine needs.
+# Runtime works if container has --security-opt seccomp=unconfined (set in Coolify Custom Docker Run Options).
 COPY install_mt5.sh /install_mt5.sh
-RUN chmod +x /install_mt5.sh && /install_mt5.sh
-
-# ---- App + entrypoint ----
 COPY app.py /app/app.py
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /install_mt5.sh /entrypoint.sh
 
 EXPOSE 5001 18812
 

@@ -1,5 +1,7 @@
 #!/bin/bash
-# Runtime: Xvfb + MT5 terminal (auto-login si MT5_LOGIN set) + mt5linux RPyC server + FastAPI
+# Runtime: 1) Xvfb, 2) install MT5 if first boot, 3) MT5 terminal, 4) RPyC server, 5) FastAPI
+# Build-time wineboot fails on Coolify (seccomp restrictions). Runtime needs:
+#   custom_docker_run_options = --security-opt seccomp=unconfined
 
 set +e
 echo "[ENTRYPOINT] $(date) — starting MT5 stack"
@@ -9,15 +11,29 @@ export WINEPREFIX="${WINEPREFIX:-/root/.wine}"
 export WINEARCH=win64
 export WINEDEBUG=-all,err-toolbar,fixme-all
 
-# 1) Xvfb
+MT5_BIN="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
+INSTALL_MARKER="$WINEPREFIX/.mt5-install-done"
+
+# 1) Xvfb (virtual display)
 Xvfb :99 -screen 0 1280x1024x16 -ac &
 sleep 3
 echo "[ENTRYPOINT] Xvfb up"
 
-# 2) Verify MT5 binary (build-time install must have succeeded)
-MT5_BIN="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
+# 2) First-boot install (Wine prefix + MT5 + Python-in-Wine + MetaTrader5 lib)
+if [ ! -f "$INSTALL_MARKER" ] || [ ! -f "$MT5_BIN" ]; then
+    echo "[ENTRYPOINT] First boot — running /install_mt5.sh"
+    /install_mt5.sh
+    if [ $? -ne 0 ]; then
+        echo "[ENTRYPOINT] FATAL: install_mt5.sh failed."
+        echo "[ENTRYPOINT] Hint: ensure Coolify Custom Docker Run Options contains:"
+        echo "[ENTRYPOINT]   --security-opt seccomp=unconfined"
+        exit 1
+    fi
+    touch "$INSTALL_MARKER"
+fi
+
 if [ ! -f "$MT5_BIN" ]; then
-    echo "[ENTRYPOINT] FATAL: MT5 not installed (build-time install failed)."
+    echo "[ENTRYPOINT] FATAL: MT5 still not installed after install_mt5.sh"
     exit 1
 fi
 
