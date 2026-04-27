@@ -14,7 +14,7 @@ ENV PATH=/root/.local/bin:$PATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip python3-venv \
         wget curl ca-certificates \
-        xvfb x11-utils xdotool \
+        xvfb x11-utils xdotool imagemagick \
         net-tools iproute2 strace \
     && rm -rf /var/lib/apt/lists/*
 

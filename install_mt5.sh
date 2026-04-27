@@ -64,13 +64,24 @@ for i in $(seq 1 300); do
         pgrep -a wine 2>/dev/null | sed 's/^/    /' || echo "    (none)"
         echo "  MT5 dir contents:"
         ls "$MT5_DIR" 2>/dev/null | head -8 | sed 's/^/    /' || echo "    (not yet created)"
-        echo "  open windows (xdotool):"
-        xdotool search --name "" 2>/dev/null | head -5 | sed 's/^/    /' || echo "    (no X windows)"
-        # Try to find any MT5 install window and click "Yes/Next/Install"
-        for win in $(xdotool search --name "MetaTrader\|Setup\|Install" 2>/dev/null); do
-            echo "  found install window $win, clicking Enter"
+        echo "  open windows (xdotool, all):"
+        all_windows=$(xdotool search "" 2>/dev/null)
+        echo "$all_windows" | head -10 | sed 's/^/    /' || echo "    (no X windows)"
+        # Spam Enter + space + Alt+N (Next) + Alt+I (Install) to ALL windows
+        # Many installers don't set window names but accept these keys
+        for win in $all_windows; do
             xdotool key --window $win Return 2>/dev/null || true
+            xdotool key --window $win space 2>/dev/null || true
+            xdotool key --window $win alt+n 2>/dev/null || true
+            xdotool key --window $win alt+i 2>/dev/null || true
         done
+        # Also try generic activeWindow
+        xdotool getactivewindow key Return 2>/dev/null || true
+        # Screenshot every 60s for diagnostic (saved to /tmp)
+        if [ $((i % 20)) -eq 0 ] && command -v import >/dev/null 2>&1; then
+            import -display :99 -window root /tmp/mt5_screen_${elapsed}s.png 2>/dev/null && \
+                echo "  screenshot saved /tmp/mt5_screen_${elapsed}s.png"
+        fi
         echo "  free mem: $(free -m | awk '/^Mem:/ {print $7"MB avail / "$2"MB total"}')"
     fi
     sleep 3
