@@ -22,8 +22,8 @@ RUN dpkg --add-architecture i386 && \
         cabextract fonts-wine \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Wine works
-RUN wine64 --version
+# Verify Wine works (Bookworm ships only /usr/bin/wine — handles both 64/32 via WINEARCH)
+RUN wine --version && which wine
 
 # ---- Python (Linux side, runs FastAPI + talks to mt5linux RPyC) ----
 RUN pip3 install --no-cache-dir --break-system-packages \
