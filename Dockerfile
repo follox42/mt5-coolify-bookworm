@@ -1,17 +1,12 @@
 FROM gmag11/metatrader5_vnc:latest
 
-# gmag11/metatrader5_vnc baked-in:
-#   - linuxserver/baseimage-kasmvnc (real X server via KasmVNC)
-#   - wine-stable + mono + Python in Wine + MetaTrader5 + rpyc + mt5linux
-#   - VNC web server on port 3000 (browser access to MT5 GUI)
-#   - mt5linux RPyC server on port 8001
-#   - first-boot install of MT5 via Wine (proven working, 306+ stars)
-#
-# Env vars expected (set in Coolify):
-#   CUSTOM_USER, PASSWORD       — KasmVNC web auth
-#   MT5_CMD_OPTIONS             — passed to MT5 terminal at startup
-#
-# Volumes (Coolify):
-#   /config                     — MT5 prefix + persistent state (Wine prefix lives here)
+# gmag11's start.sh uses `-w wine python.exe` switch which was removed in
+# mt5linux 1.0+. PyPI latest is 1.0.3 → server fails with "Unknown switch -w".
+# Pin both Linux and Wine installs to mt5linux==0.1.9 (last version with -w).
+RUN sed -i \
+    -e 's|"mt5linux>=0.1.9"|"mt5linux==0.1.9"|g' \
+    -e 's|--no-deps mt5linux\b|--no-deps mt5linux==0.1.9|g' \
+    /Metatrader/start.sh && \
+    grep -E "mt5linux" /Metatrader/start.sh
 
 EXPOSE 3000 8001
