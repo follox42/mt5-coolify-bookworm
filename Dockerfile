@@ -7,15 +7,19 @@ ENV DISPLAY=:99
 ENV WINEDEBUG=-all,err-toolbar,fixme-all
 ENV PATH=/root/.local/bin:$PATH
 
-# 32-bit support is REQUIRED for Wine + MT5 (some MT5 installers still need 32-bit DLLs)
+# Enable contrib (where some Wine deps live in Bookworm)
+RUN sed -i 's/ main$/ main contrib non-free/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's/ main$/ main contrib non-free/' /etc/apt/sources.list 2>/dev/null || true
+
+# 32-bit support REQUIRED for Wine + MT5
 RUN dpkg --add-architecture i386 && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates wget curl xz-utils \
-        wine wine64 wine32 winbind winetricks \
+        wine wine64 wine32 \
         xvfb x11vnc \
         python3 python3-pip python3-venv \
-        cabextract \
+        cabextract fonts-wine \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify Wine works
@@ -26,13 +30,11 @@ RUN pip3 install --no-cache-dir --break-system-packages \
         rpyc==5.3.1 \
         mt5linux==0.1.9 \
         fastapi==0.115.0 \
-        uvicorn[standard]==0.32.0 \
+        "uvicorn[standard]==0.32.0" \
         pydantic==2.9.0 \
         httpx==0.27.0
 
-# ---- Pre-bake Wine prefix + Python (inside Wine) + MT5 + MetaTrader5 lib ----
-# This is done at BUILD time so the runtime image is ready.
-# /tmp will hold installers; remove after.
+# ---- Pre-bake Wine prefix + Python-in-Wine + MT5 + MetaTrader5 lib ----
 COPY install_mt5.sh /install_mt5.sh
 RUN chmod +x /install_mt5.sh && /install_mt5.sh
 
