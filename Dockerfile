@@ -1,33 +1,23 @@
-FROM debian:bookworm-slim
+FROM scottyhardy/docker-wine:latest
+
+USER root
+WORKDIR /root
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV WINEARCH=win64
 ENV WINEPREFIX=/root/.wine
+ENV WINEARCH=win64
 ENV DISPLAY=:99
 ENV WINEDEBUG=-all,err-toolbar,fixme-all
 ENV PATH=/root/.local/bin:$PATH
 
-# Enable contrib (where some Wine deps live in Bookworm)
-RUN sed -i 's/ main$/ main contrib non-free/' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's/ main$/ main contrib non-free/' /etc/apt/sources.list 2>/dev/null || true
-
-# 32-bit support REQUIRED for Wine + MT5
-RUN dpkg --add-architecture i386 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ca-certificates wget curl xz-utils \
-        wine wine64 wine32 \
-        xvfb x11vnc \
+# ---- Linux side: Python deps (FastAPI + RPyC client to mt5linux) ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip python3-venv \
-        cabextract fonts-wine \
+        wget curl ca-certificates \
+        xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify Wine works (Bookworm ships only /usr/bin/wine — handles both 64/32 via WINEARCH)
-RUN wine --version && which wine
-
-# ---- Python (Linux side, runs FastAPI + talks to mt5linux RPyC) ----
-# mt5linux==0.1.9 pinne numpy==1.21.4 (Python <=3.10) — Bookworm ships 3.11.
-# Workaround: installer mt5linux --no-deps puis numpy compatible 3.11 separement.
+# mt5linux==0.1.9 pinne numpy==1.21.4 (Python <=3.10) — workaround --no-deps + numpy compatible.
 RUN pip3 install --no-cache-dir --break-system-packages \
         rpyc==5.3.1 \
         fastapi==0.115.0 \
@@ -39,15 +29,15 @@ RUN pip3 install --no-cache-dir --break-system-packages \
     && pip3 install --no-cache-dir --break-system-packages --no-deps \
         mt5linux==0.1.9
 
-# ---- Pre-bake Wine prefix + Python-in-Wine + MT5 + MetaTrader5 lib ----
+# ---- Wine prefix init + MT5 install + Python-in-Wine + MetaTrader5 lib ----
 COPY install_mt5.sh /install_mt5.sh
 RUN chmod +x /install_mt5.sh && /install_mt5.sh
 
-# Copy app + entrypoint
+# ---- App + entrypoint ----
 COPY app.py /app/app.py
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 5000 18812
+EXPOSE 5001 18812
 
 ENTRYPOINT ["/entrypoint.sh"]
