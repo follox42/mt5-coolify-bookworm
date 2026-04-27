@@ -26,13 +26,18 @@ RUN dpkg --add-architecture i386 && \
 RUN wine --version && which wine
 
 # ---- Python (Linux side, runs FastAPI + talks to mt5linux RPyC) ----
+# mt5linux==0.1.9 pinne numpy==1.21.4 (Python <=3.10) — Bookworm ships 3.11.
+# Workaround: installer mt5linux --no-deps puis numpy compatible 3.11 separement.
 RUN pip3 install --no-cache-dir --break-system-packages \
         rpyc==5.3.1 \
-        mt5linux==0.1.9 \
         fastapi==0.115.0 \
         "uvicorn[standard]==0.32.0" \
         pydantic==2.9.0 \
-        httpx==0.27.0
+        httpx==0.27.0 \
+        "numpy>=1.26,<2.0" \
+        pandas==2.2.3 \
+    && pip3 install --no-cache-dir --break-system-packages --no-deps \
+        mt5linux==0.1.9
 
 # ---- Pre-bake Wine prefix + Python-in-Wine + MT5 + MetaTrader5 lib ----
 COPY install_mt5.sh /install_mt5.sh
