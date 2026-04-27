@@ -34,8 +34,12 @@ echo "[install] disk free + mem before MT5 install:"
 df -h "$WINEPREFIX" | tail -1
 free -m | head -2
 
+echo "[install] sanity check — connectivity to MetaQuotes CDN from container:"
+curl -sS -m 8 -o /dev/null -w "  HTTP=%{http_code} time=%{time_total}s size=%{size_download}B\n" https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe || echo "  CURL FAILED"
+
 echo "[install] install MT5 silently (poll up to 15 min for terminal64.exe, log every 30s)"
-wine /tmp/mt5setup.exe /auto &
+# Force WINEPREFIX in subprocess (some installers spawn child wine without env propagation)
+env WINEPREFIX="$WINEPREFIX" WINEARCH=win64 DISPLAY=:99 wine /tmp/mt5setup.exe /auto &
 MT5_PID=$!
 MT5_BIN="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
@@ -46,16 +50,27 @@ for i in $(seq 1 300); do
         echo "[install] MT5 ready after $((i * 3))s"
         break
     fi
+    # Try to dismiss any GUI dialog every 30s with xdotool
     if [ $((i % 10)) -eq 0 ]; then
         elapsed=$((i * 3))
         echo "[install] still waiting ${elapsed}s..."
         if ps -p $MT5_PID > /dev/null 2>&1; then
-            echo "  installer PID $MT5_PID: alive ($(ps -o rss= -p $MT5_PID 2>/dev/null | awk '{print int($1/1024)}')MB RSS)"
+            rss=$(ps -o rss= -p $MT5_PID 2>/dev/null | awk '{print int($1/1024)}')
+            echo "  installer PID $MT5_PID: alive (${rss}MB RSS)"
         else
             echo "  installer PID $MT5_PID: DEAD"
         fi
+        echo "  all wine procs:"
+        pgrep -a wine 2>/dev/null | sed 's/^/    /' || echo "    (none)"
         echo "  MT5 dir contents:"
         ls "$MT5_DIR" 2>/dev/null | head -8 | sed 's/^/    /' || echo "    (not yet created)"
+        echo "  open windows (xdotool):"
+        xdotool search --name "" 2>/dev/null | head -5 | sed 's/^/    /' || echo "    (no X windows)"
+        # Try to find any MT5 install window and click "Yes/Next/Install"
+        for win in $(xdotool search --name "MetaTrader\|Setup\|Install" 2>/dev/null); do
+            echo "  found install window $win, clicking Enter"
+            xdotool key --window $win Return 2>/dev/null || true
+        done
         echo "  free mem: $(free -m | awk '/^Mem:/ {print $7"MB avail / "$2"MB total"}')"
     fi
     sleep 3

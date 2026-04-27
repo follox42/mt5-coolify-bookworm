@@ -14,7 +14,8 @@ ENV PATH=/root/.local/bin:$PATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip python3-venv \
         wget curl ca-certificates \
-        xvfb \
+        xvfb x11-utils xdotool \
+        net-tools iproute2 strace \
     && rm -rf /var/lib/apt/lists/*
 
 # mt5linux==0.1.9 pinne numpy==1.21.4 (Python <=3.10) — workaround --no-deps + numpy compatible.
