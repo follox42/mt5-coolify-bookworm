@@ -34,25 +34,31 @@ echo "[install] disk free + mem before MT5 install:"
 df -h "$WINEPREFIX" | tail -1
 free -m | head -2
 
-echo "[install] install MT5 silently (poll up to 15 min for terminal64.exe)"
+echo "[install] install MT5 silently (poll up to 15 min for terminal64.exe, log every 30s)"
 wine /tmp/mt5setup.exe /auto &
 MT5_PID=$!
 MT5_BIN="$WINEPREFIX/drive_c/Program Files/MetaTrader 5/terminal64.exe"
 MT5_DIR="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 
-# Poll up to 15 min, log progress every 60s
-for i in $(seq 1 180); do
+# Poll every 3s, log progress every 30s, max 15 min
+for i in $(seq 1 300); do
     if [ -f "$MT5_BIN" ]; then
-        echo "[install] MT5 ready after ${i}*5s"
+        echo "[install] MT5 ready after $((i * 3))s"
         break
     fi
-    if [ $((i % 12)) -eq 0 ]; then
-        elapsed=$((i * 5))
-        echo "[install] still waiting (${elapsed}s)..."
-        ls -la "$MT5_DIR" 2>/dev/null | head -5 || echo "  (MT5 dir not yet created)"
-        ps -p $MT5_PID > /dev/null 2>&1 && echo "  (installer process alive)" || echo "  (installer process DEAD)"
+    if [ $((i % 10)) -eq 0 ]; then
+        elapsed=$((i * 3))
+        echo "[install] still waiting ${elapsed}s..."
+        if ps -p $MT5_PID > /dev/null 2>&1; then
+            echo "  installer PID $MT5_PID: alive ($(ps -o rss= -p $MT5_PID 2>/dev/null | awk '{print int($1/1024)}')MB RSS)"
+        else
+            echo "  installer PID $MT5_PID: DEAD"
+        fi
+        echo "  MT5 dir contents:"
+        ls "$MT5_DIR" 2>/dev/null | head -8 | sed 's/^/    /' || echo "    (not yet created)"
+        echo "  free mem: $(free -m | awk '/^Mem:/ {print $7"MB avail / "$2"MB total"}')"
     fi
-    sleep 5
+    sleep 3
 done
 
 # Don't kill aggressively — let installer finish if it's almost done
