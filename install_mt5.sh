@@ -68,15 +68,19 @@ fi
 # ---- [3/5] Install MT5 ----
 if [ ! -f "$MT5_BIN" ]; then
     echo "[install] [3/5] downloading MT5 setup..."
-    curl -sSL -o /tmp/mt5setup.exe "$MT5_URL"
-    ls -la /tmp/mt5setup.exe
+    # Use /root not /tmp — /tmp may be noexec mounted in Coolify/Proxmox containers
+    curl -sSL -o /root/mt5setup.exe "$MT5_URL"
+    chmod +x /root/mt5setup.exe
+    ls -la /root/mt5setup.exe
+    echo "[install] /tmp mount options: $(mount | grep ' /tmp ' || echo 'not separately mounted')"
 
     echo "[install] [3/5] connectivity probe to MQL5 CDN:"
     curl -sS -m 8 -o /dev/null -w "  HTTP=%{http_code} time=%{time_total}s\n" "$MT5_URL"
 
-    echo "[install] [3/5] installing MT5 via wine /auto (capture stderr)..."
-    # Capture wine output to /tmp/wine-mt5.log so we see WHY it exits early
-    wine /tmp/mt5setup.exe /auto >/tmp/wine-mt5.log 2>&1 &
+    echo "[install] [3/5] installing MT5 via wine /auto (verbose WINEDEBUG)..."
+    # Verbose Wine logging to capture anti-debug + early-exit reasons
+    WINEDEBUG=+process,+thread,+module,err+all \
+        wine /root/mt5setup.exe /auto >/root/wine-mt5.log 2>&1 &
     MT5_PID=$!
     # gmag11 uses simple `wait` — let installer finish naturally
     # We add a 20-min safety timeout + log every 60s
@@ -103,12 +107,13 @@ if [ ! -f "$MT5_BIN" ]; then
 
     if [ ! -f "$MT5_BIN" ]; then
         echo "[install] FAIL: terminal64.exe still missing after MT5 install"
-        echo "[install] === wine stderr/stdout from MT5 install ==="
-        cat /tmp/wine-mt5.log 2>/dev/null | tail -100 || echo "  (no wine log)"
+        echo "[install] === wine log (verbose) — last 200 lines ==="
+        cat /root/wine-mt5.log 2>/dev/null | tail -200 || echo "  (no wine log)"
+        echo "[install] === wine log size: $(wc -c < /root/wine-mt5.log 2>/dev/null || echo 0) bytes ==="
         echo "[install] === Program Files contents ==="
         ls -la "$WINEPREFIX/drive_c/Program Files/" 2>/dev/null || echo "  (Program Files dir missing)"
-        echo "[install] === Wine prefix recent files ==="
-        find "$WINEPREFIX/drive_c" -newer /tmp/mt5setup.exe -type f 2>/dev/null | head -20
+        echo "[install] === Wine prefix recent files (last 30) ==="
+        find "$WINEPREFIX/drive_c" -newer /root/mt5setup.exe -type f 2>/dev/null | head -30
         exit 1
     fi
     echo "[install] [3/5] MT5 installed at $MT5_BIN"
