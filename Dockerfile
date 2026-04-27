@@ -20,12 +20,17 @@ RUN dpkg --add-architecture i386 && \
     apt-get install --install-recommends -y winehq-stable && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# ---- Linux side: Python + Xvfb + xdotool ----
+# ---- Linux side: Python + Xvfb + xdotool + winetricks ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-pip python3-venv \
         xvfb x11-utils xdotool imagemagick \
         net-tools iproute2 \
+        cabextract winbind p7zip-full unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# winetricks (latest from upstream, not debian outdated package)
+RUN wget -q -O /usr/local/bin/winetricks https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks && \
+    chmod +x /usr/local/bin/winetricks
 
 # mt5linux==0.1.9 pinne numpy==1.21.4 (Python <=3.10) — workaround --no-deps + numpy compatible.
 RUN pip3 install --no-cache-dir --break-system-packages \

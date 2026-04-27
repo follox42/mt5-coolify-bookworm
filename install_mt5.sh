@@ -10,6 +10,14 @@ export DISPLAY="${DISPLAY:-:99}"
 export WINEARCH=win64
 export WINEDEBUG=-all
 
+echo "[install] === ENV INFO ==="
+echo "[install] wine version: $(wine --version 2>&1)"
+echo "[install] which wine: $(which wine)"
+echo "[install] WINEPREFIX: $WINEPREFIX"
+echo "[install] DISPLAY: $DISPLAY"
+echo "[install] CPU flags: $(grep -oE 'avx[0-9]*|bmi[0-9]*|fma' /proc/cpuinfo | sort -u | tr '\n' ' ')"
+echo "[install] ================="
+
 MONO_URL="https://dl.winehq.org/wine/wine-mono/10.3.0/wine-mono-10.3.0-x86.msi"
 PYTHON_URL="https://www.python.org/ftp/python/3.9.13/python-3.9.13.exe"
 MT5_URL="https://download.mql5.com/cdn/web/metaquotes.software.corp/mt5/mt5setup.exe"
@@ -48,17 +56,27 @@ echo "[install] Wine prefix OK (kernel32.dll present)"
 wine reg add "HKEY_CURRENT_USER\\Software\\Wine" /v Version /t REG_SZ /d "win10" /f
 echo "[install] [2/5] Wine version set to win10"
 
+# ---- [2.5/5] winetricks deps (corefonts + vcrun2019 — required by MT5 stub) ----
+if [ ! -f "$WINEPREFIX/.winetricks-done" ]; then
+    echo "[install] [2.5/5] installing winetricks deps (corefonts vcrun2019)..."
+    winetricks -q corefonts vcrun2019 2>&1 | tail -20 || echo "  winetricks had warnings (continuing)"
+    touch "$WINEPREFIX/.winetricks-done"
+else
+    echo "[install] [2.5/5] winetricks deps already done, skipping."
+fi
+
 # ---- [3/5] Install MT5 ----
 if [ ! -f "$MT5_BIN" ]; then
     echo "[install] [3/5] downloading MT5 setup..."
-    curl -L -o /tmp/mt5setup.exe "$MT5_URL"
+    curl -sSL -o /tmp/mt5setup.exe "$MT5_URL"
     ls -la /tmp/mt5setup.exe
 
     echo "[install] [3/5] connectivity probe to MQL5 CDN:"
     curl -sS -m 8 -o /dev/null -w "  HTTP=%{http_code} time=%{time_total}s\n" "$MT5_URL"
 
-    echo "[install] [3/5] installing MT5 via wine /auto + wait (gmag11 method)..."
-    wine /tmp/mt5setup.exe /auto &
+    echo "[install] [3/5] installing MT5 via wine /auto (capture stderr)..."
+    # Capture wine output to /tmp/wine-mt5.log so we see WHY it exits early
+    wine /tmp/mt5setup.exe /auto >/tmp/wine-mt5.log 2>&1 &
     MT5_PID=$!
     # gmag11 uses simple `wait` — let installer finish naturally
     # We add a 20-min safety timeout + log every 60s
@@ -85,7 +103,12 @@ if [ ! -f "$MT5_BIN" ]; then
 
     if [ ! -f "$MT5_BIN" ]; then
         echo "[install] FAIL: terminal64.exe still missing after MT5 install"
+        echo "[install] === wine stderr/stdout from MT5 install ==="
+        cat /tmp/wine-mt5.log 2>/dev/null | tail -100 || echo "  (no wine log)"
+        echo "[install] === Program Files contents ==="
         ls -la "$WINEPREFIX/drive_c/Program Files/" 2>/dev/null || echo "  (Program Files dir missing)"
+        echo "[install] === Wine prefix recent files ==="
+        find "$WINEPREFIX/drive_c" -newer /tmp/mt5setup.exe -type f 2>/dev/null | head -20
         exit 1
     fi
     echo "[install] [3/5] MT5 installed at $MT5_BIN"
