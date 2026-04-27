@@ -17,8 +17,12 @@ RUN dpkg --add-architecture i386 && \
     wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key && \
     wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bookworm/winehq-bookworm.sources && \
     apt-get update && \
-    apt-get install --install-recommends -y winehq-stable && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install --install-recommends -y \
+        winehq-stable=10.0.0.0~bookworm-1 \
+        wine-stable=10.0.0.0~bookworm-1 \
+        wine-stable-amd64=10.0.0.0~bookworm-1 \
+        wine-stable-i386=10.0.0.0~bookworm-1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ---- Linux side: Python + Xvfb + xdotool + winetricks ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
