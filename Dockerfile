@@ -1,15 +1,21 @@
-FROM gmag11/metatrader5_vnc:latest
+FROM python:3.11-slim
 
-# gmag11's start.sh runs `mt5linux ... -w wine python.exe` but the -w switch
-# was REMOVED in mt5linux 1.0+. PyPI latest = 1.0.3 → "Unknown switch -w".
-# Pin to 0.1.9 (last with -w) on BOTH Linux and Wine sides + force-reinstall
-# (since the persistent /config volume already has 1.0.3 from previous boot).
-RUN sed -i \
-    -e 's/if ! is_python_package_installed "mt5linux"; then/if true; then/g' \
-    -e 's/if ! is_wine_python_package_installed "mt5linux"; then/if true; then/g' \
-    -e 's/"mt5linux>=0.1.9"/"mt5linux==0.1.9" --force-reinstall/g' \
-    -e 's/--no-deps mt5linux\b/--no-deps --force-reinstall mt5linux==0.1.9/g' \
-    /Metatrader/start.sh && \
-    grep -E "mt5linux|is_.*_installed" /Metatrader/start.sh | head -10
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-EXPOSE 3000 8001
+WORKDIR /app
+
+# mt5linux 0.1.9 has very tight version pins; use --no-deps and provide compatible deps separately
+RUN pip install --no-cache-dir \
+        fastapi==0.115.0 \
+        "uvicorn[standard]==0.32.0" \
+        pydantic==2.9.0 \
+        rpyc==5.0.1 \
+        plumbum==1.7.0 \
+    && pip install --no-cache-dir --no-deps mt5linux==0.1.9
+
+COPY app.py /app/app.py
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
